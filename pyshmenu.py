@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import os
 import sys
 import argparse
 import curses 
@@ -77,6 +78,8 @@ class Menu:
 
 if __name__ == '__main__':
 
+    print(sys.argv)
+
     parser = argparse.ArgumentParser(description='Simple mneu using python and curses')
     parser.add_argument('-f', '--file')
     parser.add_argument('-t', '--type', choices=['index', 'value'], default='index')
@@ -94,32 +97,51 @@ if __name__ == '__main__':
             entries.append(line[:-1])
         menufile.close()
     elif len(args.positional) > 0:
-        # READ from command line    
+        # Read from command line    
         for line in args.positional:
             entries.append(line)
     else:
-        # Try to read from stdin
-        for line in sys.stdin:
-            print(line)
-            if len(line[:-1]) > 0:
-                entries.append(line[:-1])
-            else:
-                break
+        # Try to read from stdin until EOF
+        line = sys.stdin.readline()
+        while len(line) > 1:
+            entries.append(line[:-1])
+            line = sys.stdin.readline()
+        #termname = os.ttyname(sys.stdout.fileno())
+        # Close the stdin file descriptor ...
+        os.close(0);
+        # ... end open again - as terminal
+        # curses lib use 0 fd as input
+        # Used as:
+        # ./pyshmenu.sh <<EOF
+        #   entry1
+        #   entry2
+        #   ....
+        #   entryN
+        # EOF 
+        #
+        sys.stdin = open('/dev/tty', 'r')
+        sys._stdin = sys.stdin
+
+        fd = os.dup(1)
+        os.close(1)
+        sys.stdout = open('/dev/tty', 'w')
+        sys._stdout = sys.stdout
 
 
     if len(entries) > 0:
-        stdscr = curses.initscr()
-        curses.start_color()
-        curses.noecho()
-        curses.cbreak()
-        
-        m = Menu(entries)
-        position = m.loop()
-
+        try:    
+            stdscr = curses.initscr()
+            curses.start_color()
+            curses.noecho()
+            curses.cbreak()
+            
+            m = Menu(entries)
+            position = m.loop()
+        except:
+            pass
 
         curses.nocbreak()
         curses.echo()
-
         curses.endwin()
 
         if args.type == 'index':
