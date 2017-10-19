@@ -78,14 +78,13 @@ class Menu:
 
 if __name__ == '__main__':
 
-    print(sys.argv)
-
     parser = argparse.ArgumentParser(description='Simple mneu using python and curses')
     parser.add_argument('-f', '--file')
     parser.add_argument('-t', '--type', choices=['index', 'value'], default='index')
     parser.add_argument('positional', nargs='*')
 
     args = parser.parse_args()
+    out = None
 
     entries = []
     # Evaluating menu values
@@ -123,6 +122,7 @@ if __name__ == '__main__':
         sys._stdin = sys.stdin
 
         fd = os.dup(1)
+        out = os.fdopen(fd, 'w')
         os.close(1)
         sys.stdout = open('/dev/tty', 'w')
         sys._stdout = sys.stdout
@@ -145,10 +145,14 @@ if __name__ == '__main__':
         curses.endwin()
 
         if args.type == 'index':
-            print(position)
+            print >> out, position  
+            out.flush()
+            #out.close()
+            #print(position)
         elif args.type == 'value':
-            if position: 
-                print(entries[position])
+            if position >= 0: 
+                print >> out, entries[position]  
+                out.flush()
     else:
         sys.exit(1)
 
