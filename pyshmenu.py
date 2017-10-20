@@ -56,14 +56,16 @@ class Menu:
 
 
     def loop(self):
-        position = None
+        position = 1
 
         self.win.keypad(1)
         while True:
             char = self.win.getch()
             if char == ord('q') or char == ord('Q'):
+                position = None
                 break
             elif char == 27:
+                position = None
                 break
             elif char == curses.KEY_UP:
                self.cursor_v(-1)
@@ -128,6 +130,8 @@ if __name__ == '__main__':
         sys._stdout = sys.stdout
 
 
+    position = None
+
     if len(entries) > 0:
         try:    
             stdscr = curses.initscr()
@@ -144,15 +148,18 @@ if __name__ == '__main__':
         curses.echo()
         curses.endwin()
 
-        if args.type == 'index':
-            print >> out, position  
-            out.flush()
-            #out.close()
-            #print(position)
-        elif args.type == 'value':
-            if position >= 0: 
-                print >> out, entries[position]  
+        if position >= 0:
+            if args.type == 'index':
+                print >> out, position  
                 out.flush()
+                #out.close()
+                #print(position)
+            elif args.type == 'value':
+                if position >= 0: 
+                    print >> out, entries[position]  
+                    out.flush()
+        else:
+            sys.exit(1) 
     else:
         sys.exit(1)
 
