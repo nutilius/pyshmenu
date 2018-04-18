@@ -4,19 +4,75 @@ import sys
 import argparse
 import curses 
 
+stdscr = None
+
+def init():
+
+    global stdscr
+
+    if not stdscr:
+        stdscr = curses.initscr()
+        curses.start_color()
+        curses.noecho()
+        curses.cbreak()
+        curses.curs_set(0)
+
+def fini():
+    curses.nocbreak()
+    curses.echo()
+    curses.endwin()
 
 class Menu:
+    '''
+    Simple Menu class to show menu entries on system where ncurses is available
+
+    '''
 
     win = None
+    brd = None
     entries = None
     normal = None
     marked = None
 
+    posx = 5
+    posy = 4
+    width  = 0
+    height = 0
+    frame  = 1 
 
-    def __init__(self, entries):
-        # Init window
+
+    # *****************************************
+    #
+    # init 
+    #
+    # *****************************************
+    def __init__(self, entries, posx = 0, posy = 0, border = True):
+        # checking max size of the line
+        self.width = 0
+        self.posx = posx
+        self.posy = posy
+
+        if border:
+            self.frame = 1
+
+        # calculate max width
+        for entry in entries:
+            if len(entry) > self.width:
+                self.width = len(entry)
+
+        # calculate max height
+        self.height = len(entries)
+        screen_w = stdscr.getmaxyx()[1]
+
+        # init window
         self.entries = entries
-        self.win = curses.newwin(len(entries), stdscr.getmaxyx()[1])
+
+        self.win = curses.newwin(self.height + 2 * self.frame, 
+                                 self.width  + 2 * self.frame, 
+                                 self.posy, 
+                                 self.posx)
+        if border > 0:
+            self.win.border()
         
         # init attributes
         if curses.has_colors():
@@ -28,33 +84,55 @@ class Menu:
             self.normal = curses.A_NORMAL #color_pair(curses.A_NORMAL)
             self.marked = curses.A_REVERSE #color_pair(curses.A_UNDERLINE)
 
-        # Fulfill window
-        col = 0
+        # Fill the window
+        row = 0
         for entry in entries:
-            self.win.addstr(col, 0, entry, self.marked if col == 0 else self.normal)
-            col += 1
-        self.win.move(0, 0)
+            self.win.addstr(row + self.frame, 0 + self.frame, 
+                            "%-*s" % (self.width, entry), 
+                            self.marked if row == 0 else self.normal)
+            row += 1
+        # move cursor
+        self.win.move(self.frame, self.frame)
+
         self.win.refresh()
 
 
+    # *****************************************
+    #
+    # Moving cursor in vertical direction
+    #   dir:
+    #     -1 - up
+    #     +1 - down
+    #
+    # *****************************************
     def cursor_v(self, dir):
         (my, mx) = self.win.getmaxyx()
+        my -= self.frame
+        mx -= self.frame
         (cy, cx) = self.win.getyx()
         
-        self.win.addstr(cy, 0, self.entries[cy], self.normal)         
+        self.win.addstr(cy + 0, 0 + self.frame,# cy, 0, 
+                        "%-*s" % (self.width, self.entries[cy - 1]), 
+                        self.normal)         
         cy = cy + dir 
-        if cy < 0 :
+        if cy < self.frame:
             cy = my - 1
         elif cy >= my:
-            cy = 0
-        self.win.addstr(cy, 0, self.entries[cy], self.marked)         
+            cy = 1
+        self.win.addstr(cy + 0, 0 + self.frame,# cy, 0, 
+                        "%-*s" % (self.width, self.entries[cy - 1]), 
+                        self.marked)         
         self.win.move(cy, cx)
         self.win.refresh()
 
         return
 
 
-
+    # *****************************************
+    #
+    # activity loop
+    #
+    # *****************************************
     def loop(self):
         position = 1
 
@@ -75,7 +153,7 @@ class Menu:
                position = self.win.getyx()[0]
                break
         self.win.keypad(0)
-        return position
+        return position - self.frame
 
 
 if __name__ == '__main__':
@@ -83,6 +161,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Simple mneu using python and curses')
     parser.add_argument('-f', '--file')
     parser.add_argument('-t', '--type', choices=['index', 'value'], default='index')
+    parser.add_argument('-b', '--box', type=bool, default=True)
     parser.add_argument('positional', nargs='*')
 
     args = parser.parse_args()
@@ -90,6 +169,10 @@ if __name__ == '__main__':
 
     entries = []
     # Evaluating menu values
+    # possible sources:
+    #   file           - name taken from args
+    #   commnad line   - all not keyword paramaters
+    #   standard input - if no not-keyword paramaters 
 
     if args.file:
         # Read from file
@@ -132,32 +215,29 @@ if __name__ == '__main__':
 
     position = None
 
+
     if len(entries) > 0:
         try:    
-            stdscr = curses.initscr()
-            curses.start_color()
-            curses.noecho()
-            curses.cbreak()
-            
-            m = Menu(entries)
+            init()
+            m = Menu(entries, posx = 25, posy = 19, border = True)
             position = m.loop()
         except:
             pass
 
-        curses.nocbreak()
-        curses.echo()
-        curses.endwin()
+        fini()
 
         if position >= 0:
             if args.type == 'index':
                 print >> out, position  
-                out.flush()
+                if out:
+                    out.flush()
                 #out.close()
                 #print(position)
             elif args.type == 'value':
                 if position >= 0: 
                     print >> out, entries[position]  
-                    out.flush()
+                    if out:
+                        out.flush()
         else:
             sys.exit(1) 
     else:
