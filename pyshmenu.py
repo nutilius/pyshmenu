@@ -8,14 +8,13 @@ stdscr = None
 
 def init():
 
-    global stdscr
-
-    if not stdscr:
         stdscr = curses.initscr()
         curses.start_color()
         curses.noecho()
         curses.cbreak()
         curses.curs_set(0)
+
+        return stdscr
 
 def fini():
     curses.nocbreak()
@@ -29,50 +28,64 @@ class Menu:
     '''
 
     win = None
-    brd = None
     entries = None
     normal = None
     marked = None
 
-    posx = 5
-    posy = 4
-    width  = 0
-    height = 0
-    frame  = 1 
+    posx = 0
+    posy = 0
+    width  = None
+    height = None
+    n_data_rows = 0    # max width of data
+    n_data_cols = 0    # max height of data
+    row_selected = 0
+    frame  = 0 
 
 
     # *****************************************
     #
     # init 
+    #   border:
+    #     0 - no border
+    #     1 - default border
     #
     # *****************************************
-    def __init__(self, entries, posx = 0, posy = 0, border = True):
-        # checking max size of the line
-        self.width = 0
-        self.posx = posx
-        self.posy = posy
+    def __init__(self, stdscr, entries, posx = -1, posy = -1, width=None, height=None, border = 0):
 
-        if border:
+        (maxy, maxx) = stdscr.getmaxyx()
+        self.width  = min(width,  maxx) if width  else maxx
+        self.height = min(height, maxy) if height else maxy
+
+
+        if border > 0:
             self.frame = 1
 
-        # calculate max width
+        # calculate max width of data - number of columns
         for entry in entries:
-            if len(entry) > self.width:
-                self.width = len(entry)
+            if len(entry) > self.n_data_cols:
+                self.n_data_cols = len(entry)
 
-        # calculate max height
-        self.height = len(entries)
-        screen_w = stdscr.getmaxyx()[1]
+        # calculate max height - number of rows
+        self.n_data_rows = len(entries)
 
         # init window
         self.entries = entries
 
-        self.win = curses.newwin(self.height + 2 * self.frame, 
-                                 self.width  + 2 * self.frame, 
+        # Hint: in case without border the width must be incremented 
+        # by one otherwise addstr generate error in last row
+        height = self.n_data_rows + 2 * self.frame 
+        width  = self.n_data_cols + 1 + 1 * self.frame 
+        self.posx = posx if posx > -1 else (maxx - width)  / 2 
+        self.posy = posy if posy > -1 else (maxy - height) / 2
+
+        self.win = curses.newwin(height,
+                                 width,
                                  self.posy, 
                                  self.posx)
-        if border > 0:
+        if border == 1:
             self.win.border()
+        elif border == 2:
+            self.win.border('|', '|', '-', '-', '+', '+', '+', '+')
         
         # init attributes
         if curses.has_colors():
@@ -84,18 +97,40 @@ class Menu:
             self.normal = curses.A_NORMAL #color_pair(curses.A_NORMAL)
             self.marked = curses.A_REVERSE #color_pair(curses.A_UNDERLINE)
 
+        # select current row (highlitet)
+        self.row_selected = self.frame # in the beginning 1st row is selected
+
+        self.update_window()
+
+
+    # *****************************************
+    # Redraw windows:
+    #  - redraw current line with marked background
+    #  - redraw other lines with normal background
+    #  - position cursor in valid place
+    #
+    # *****************************************
+    def update_window(self):
+
         # Fill the window
-        row = 0
-        for entry in entries:
-            self.win.addstr(row + self.frame, 0 + self.frame, 
-                            "%-*s" % (self.width, entry), 
-                            self.marked if row == 0 else self.normal)
-            row += 1
-        # move cursor
-        self.win.move(self.frame, self.frame)
+        row = self.frame
+        col = self.frame
+
+        idx = 0
+        while idx < len(self.entries):
+            row = idx + self.frame
+            self.win.addnstr(row, col, 
+                            "%-*s" % (self.n_data_cols, self.entries[idx]), 
+                            self.n_data_cols,
+                            self.marked if row == self.row_selected else self.normal)
+           #self.win.addnstr(row, col, "x", self.n_data_cols, self.normal)
+            idx += 1
+
+        self.win.move(self.row_selected, self.frame)
 
         self.win.refresh()
 
+        return
 
     # *****************************************
     #
@@ -106,24 +141,16 @@ class Menu:
     #
     # *****************************************
     def cursor_v(self, dir):
-        (my, mx) = self.win.getmaxyx()
-        my -= self.frame
-        mx -= self.frame
-        (cy, cx) = self.win.getyx()
+        (row, col) = self.win.getyx()
         
-        self.win.addstr(cy + 0, 0 + self.frame,# cy, 0, 
-                        "%-*s" % (self.width, self.entries[cy - 1]), 
-                        self.normal)         
-        cy = cy + dir 
-        if cy < self.frame:
-            cy = my - 1
-        elif cy >= my:
-            cy = 1
-        self.win.addstr(cy + 0, 0 + self.frame,# cy, 0, 
-                        "%-*s" % (self.width, self.entries[cy - 1]), 
-                        self.marked)         
-        self.win.move(cy, cx)
-        self.win.refresh()
+        row = row + dir 
+        if row < self.frame:
+            row = self.n_data_rows - 1
+        elif row >= self.n_data_rows + self.frame:
+            row = self.frame
+        self.row_selected = row
+
+        self.update_window()
 
         return
 
@@ -140,8 +167,8 @@ class Menu:
         while True:
             char = self.win.getch()
             if char == ord('q') or char == ord('Q'):
-                position = None
-                break
+                #position = None
+                return None
             elif char == 27:
                 position = None
                 break
@@ -161,7 +188,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Simple mneu using python and curses')
     parser.add_argument('-f', '--file')
     parser.add_argument('-t', '--type', choices=['index', 'value'], default='index')
-    parser.add_argument('-b', '--box', type=bool, default=True)
+    parser.add_argument('-x', '--posx', type=int, default=-1)
+    parser.add_argument('-y', '--posy', type=int, default=-1)
+    parser.add_argument('-b', '--border', type=int, default=0)
     parser.add_argument('positional', nargs='*')
 
     args = parser.parse_args()
@@ -215,18 +244,20 @@ if __name__ == '__main__':
 
     position = None
 
-
     if len(entries) > 0:
         try:    
-            init()
-            m = Menu(entries, posx = 25, posy = 19, border = True)
+            stdscr = init()
+            m = Menu(stdscr, entries, 
+                     posx = args.posx, posy = args.posy, 
+                     border = args.border)
             position = m.loop()
-        except:
-            pass
+            fini()
+        except curses.error as ex:
+            curses.endwin()
+            print(ex)
 
-        fini()
 
-        if position >= 0:
+        if position and position >= 0:
             if args.type == 'index':
                 print >> out, position  
                 if out:
@@ -240,6 +271,7 @@ if __name__ == '__main__':
                         out.flush()
         else:
             sys.exit(1) 
+
     else:
         sys.exit(1)
 
