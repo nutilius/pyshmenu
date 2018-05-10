@@ -170,8 +170,7 @@ class Menu:
                 #position = None
                 return None
             elif char == 27:
-                position = None
-                break
+                return None
             elif char == curses.KEY_UP:
                self.cursor_v(-1)
             elif char == curses.KEY_DOWN:
@@ -257,7 +256,10 @@ if __name__ == '__main__':
             print(ex)
 
 
-        if position and position >= 0:
+        
+        if position == None:
+            sys.exit(1) 
+        else:
             if args.type == 'index':
                 print >> out, position  
                 if out:
@@ -269,8 +271,6 @@ if __name__ == '__main__':
                     print >> out, entries[position]  
                     if out:
                         out.flush()
-        else:
-            sys.exit(1) 
 
     else:
         sys.exit(1)
