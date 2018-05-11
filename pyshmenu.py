@@ -45,21 +45,13 @@ class Menu:
 
     # *****************************************
     #
-    # init 
-    #   border:
-    #     0 - no border
-    #     1 - default border
+    #
     #
     # *****************************************
-    def __init__(self, stdscr, entries, posx = -1, posy = -1, width=None, height=None, border = 0):
+    def __init__(self, entries):
 
-        (maxy, maxx) = stdscr.getmaxyx()
-        self.width  = min(width,  maxx) if width  else maxx
-        self.height = min(height, maxy) if height else maxy
-
-
-        if border > 0:
-            self.frame = 1
+        # init window
+        self.entries = entries
 
         # calculate max width of data - number of columns
         for entry in entries:
@@ -69,8 +61,24 @@ class Menu:
         # calculate max height - number of rows
         self.n_data_rows = len(entries)
 
-        # init window
-        self.entries = entries
+
+    # *****************************************
+    #
+    #   border:
+    #     0 - no border
+    #     1 - default border
+    #
+    # *****************************************
+    def show(self, stdscr, posx = -1, posy = -1, width=None, height=None, border = 0):
+
+        (maxy, maxx) = stdscr.getmaxyx()
+        self.width  = min(width,  maxx) if width  else maxx
+        self.height = min(height, maxy) if height else maxy
+
+
+        if border > 0:
+            self.frame = 1
+
 
         # Hint: in case without border the width must be incremented 
         # by one otherwise addstr generate error in last row
@@ -182,56 +190,54 @@ class Menu:
         self.win.keypad(0)
         return position - self.frame
 
-
-
-
     # *****************************************
     #
     #
     #
     # *****************************************
-    def __init__(self, entries):
-        self.entries = entries
-
-    # *****************************************
-    #
-    #
-    #
-    # *****************************************
-    def init_curses(self):
-            self.stdscr = curses.initscr()
+    def init_curses():
+            stdscr = curses.initscr()
             curses.start_color()
             curses.noecho()
             curses.cbreak()
             curses.curs_set(0)
 
-            return self.stdscr
+            return stdscr
+    # make method static
+    init_curses = staticmethod(init_curses)
 
     # *****************************************
     #
     #
     #
     # *****************************************
-    def fini_curses(self):
+    def fini_curses():
         curses.nocbreak()
         curses.echo()
         curses.endwin()
 
+    # make method static
+    fini_curses = staticmethod(fini_curses) 
+
     # *****************************************
     #
     #
     #
     # *****************************************
-    def show(self, posx = -1, posy = -1, width=None, height=None, border = 0):
+    def fast(entries, posx = -1, posy = -1, width=None, height=None, border = 0):
         try:    
-            stdscr = self.init_curses()
-            m = Menu(stdscr, self.entries, posx, posy, width, height, border)
+            stdscr = Menu.init_curses()
+            m = Menu(entries)
+            m.show(stdscr, posx, posy, width, height, border)
             position = m.loop()
-            self.fini_curses()
+            Menu.fini_curses()
             return position
         except curses.error as ex:
-            self.fini_curses()
+            Menu.fini_curses()
             return None
+
+    # Make fast static method
+    fast = staticmethod(fast)
 
 # *********************************************************************
 #
@@ -345,9 +351,7 @@ if __name__ == '__main__':
     if len(entries) > 0:
 
 
-        position = MenuFast(entries).show(posx = args.posx, 
-                                          posy = args.posy, 
-                                          border = args.border)
+        position = Menu.fast(entries, posx = args.posx, posy = args.posy, border = args.border)
         
         if position == None:
             sys.exit(1) 
