@@ -4,22 +4,23 @@ import sys
 import argparse
 import curses 
 
-stdscr = None
 
-def init():
-
-        stdscr = curses.initscr()
-        curses.start_color()
-        curses.noecho()
-        curses.cbreak()
-        curses.curs_set(0)
-
-        return stdscr
-
-def fini():
-    curses.nocbreak()
-    curses.echo()
-    curses.endwin()
+# *********************************************************************
+# 
+#  Example usage 
+#       try:    
+#           # Otional init curses
+#           stdscr = MenuFast.init_curses()
+#           m = Menu(stdscr, entries, 
+#                    posx = args.posx, posy = args.posy, 
+#                    border = args.border)
+#           position = m.loop()
+#           # Optional close curses
+#           MenuFast.fini_curses()
+#       except curses.error as ex:
+#           curses.endwin()
+#           print(ex)
+# *********************************************************************
 
 class Menu:
     '''
@@ -182,6 +183,104 @@ class Menu:
         return position - self.frame
 
 
+
+
+    # *****************************************
+    #
+    #
+    #
+    # *****************************************
+    def __init__(self, entries):
+        self.entries = entries
+
+    # *****************************************
+    #
+    #
+    #
+    # *****************************************
+    def init_curses(self):
+            self.stdscr = curses.initscr()
+            curses.start_color()
+            curses.noecho()
+            curses.cbreak()
+            curses.curs_set(0)
+
+            return self.stdscr
+
+    # *****************************************
+    #
+    #
+    #
+    # *****************************************
+    def fini_curses(self):
+        curses.nocbreak()
+        curses.echo()
+        curses.endwin()
+
+    # *****************************************
+    #
+    #
+    #
+    # *****************************************
+    def show(self, posx = -1, posy = -1, width=None, height=None, border = 0):
+        try:    
+            stdscr = self.init_curses()
+            m = Menu(stdscr, self.entries, posx, posy, width, height, border)
+            position = m.loop()
+            self.fini_curses()
+            return position
+        except curses.error as ex:
+            self.fini_curses()
+            return None
+
+# *********************************************************************
+#
+#
+#
+#
+#
+# *********************************************************************
+class MenuFast():
+
+    stdscr = None
+    entries = None
+
+    def __init__(self, entries):
+        self.entries = entries
+
+    def init_curses(self):
+            self.stdscr = curses.initscr()
+            curses.start_color()
+            curses.noecho()
+            curses.cbreak()
+            curses.curs_set(0)
+
+            return self.stdscr
+
+    def fini_curses(self):
+        curses.nocbreak()
+        curses.echo()
+        curses.endwin()
+
+    def show(self, posx = -1, posy = -1, width=None, height=None, border = 0):
+        try:    
+            stdscr = self.init_curses()
+            m = Menu(stdscr, self.entries, posx, posy, width, height, border)
+            position = m.loop()
+            self.fini_curses()
+            return position
+        except curses.error as ex:
+            self.fini_curses()
+            return None
+            #print(ex)
+
+
+# *****************************************
+#
+#
+#
+# *****************************************
+
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Simple mneu using python and curses')
@@ -244,18 +343,11 @@ if __name__ == '__main__':
     position = None
 
     if len(entries) > 0:
-        try:    
-            stdscr = init()
-            m = Menu(stdscr, entries, 
-                     posx = args.posx, posy = args.posy, 
-                     border = args.border)
-            position = m.loop()
-            fini()
-        except curses.error as ex:
-            curses.endwin()
-            print(ex)
 
 
+        position = MenuFast(entries).show(posx = args.posx, 
+                                          posy = args.posy, 
+                                          border = args.border)
         
         if position == None:
             sys.exit(1) 
@@ -265,12 +357,11 @@ if __name__ == '__main__':
                 if out:
                     out.flush()
                 #out.close()
-                #print(position)
             elif args.type == 'value':
-                if position >= 0: 
-                    print >> out, entries[position]  
-                    if out:
-                        out.flush()
+                #if position >= 0: 
+                print >> out, entries[position]  
+                if out:
+                    out.flush()
 
     else:
         sys.exit(1)
