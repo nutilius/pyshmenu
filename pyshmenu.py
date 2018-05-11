@@ -42,6 +42,8 @@ class Menu:
     row_selected = 0
     frame  = 0 
 
+    title = "Sel:"
+
 
     # *****************************************
     #
@@ -87,15 +89,6 @@ class Menu:
         self.posx = posx if posx > -1 else (maxx - width)  / 2 
         self.posy = posy if posy > -1 else (maxy - height) / 2
 
-        self.win = curses.newwin(height,
-                                 width,
-                                 self.posy, 
-                                 self.posx)
-        if border == 1:
-            self.win.border()
-        elif border == 2:
-            self.win.border('|', '|', '-', '-', '+', '+', '+', '+')
-        
         # init attributes
         if curses.has_colors():
             curses.init_pair(1, curses.COLOR_WHITE, curses.COLOR_BLACK)
@@ -106,6 +99,21 @@ class Menu:
             self.normal = curses.A_NORMAL #color_pair(curses.A_NORMAL)
             self.marked = curses.A_REVERSE #color_pair(curses.A_UNDERLINE)
 
+        self.win = curses.newwin(height,
+                                 width,
+                                 self.posy, 
+                                 self.posx)
+        if border == 1:
+            self.win.border()
+            if self.title:
+                title_len = min(self.n_data_cols, len(self.title))
+                self.win.addnstr(0, 1,
+                                "%-*s" % (title_len, self.title), 
+                                self.n_data_cols,
+                                self.normal)
+        elif border == 2:
+            self.win.border('|', '|', '-', '-', '+', '+', '+', '+')
+        
         # select current row (highlitet)
         self.row_selected = self.frame # in the beginning 1st row is selected
 
