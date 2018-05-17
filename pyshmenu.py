@@ -22,6 +22,11 @@ import curses
 #           print(ex)
 # *********************************************************************
 
+
+from debug import Dbg, DbgNull
+dbg = None
+
+
 class Menu:
     '''
     Simple Menu class to show menu entries on system where ncurses is available
@@ -37,8 +42,8 @@ class Menu:
     posy = 0
     width  = None
     height = None
-    n_data_rows = 0    # max width of data
-    n_data_cols = 0    # max height of data
+    n_data_rows = 0    # max height of data
+    n_data_cols = 0    # max width  of data
     row_selected = 0
     frame  = 0 
 
@@ -59,6 +64,7 @@ class Menu:
         for entry in entries:
             if len(entry) > self.n_data_cols:
                 self.n_data_cols = len(entry)
+        self.n_data_cols -= self.frame
 
         # calculate max height - number of rows
         self.n_data_rows = len(entries)
@@ -74,9 +80,14 @@ class Menu:
     def show(self, stdscr, posx = -1, posy = -1, width=None, height=None, border = 0):
 
         (maxy, maxx) = stdscr.getmaxyx()
-        self.width  = min(width,  maxx) if width  else maxx
+        #maxx -= 1
+        #maxy -= 1
+        
+        
+        #self.width  = min(width,  maxx) if width  else maxx
+        dbg.out("*****Debug*****\n")
         self.height = min(height, maxy) if height else maxy
-
+        dbg.out("maxx=%d maxy=%d\n" % (maxx, maxy))
 
         if border > 0:
             self.frame = 1
@@ -84,10 +95,29 @@ class Menu:
 
         # Hint: in case without border the width must be incremented 
         # by one otherwise addstr generate error in last row
-        height = self.n_data_rows + 2 * self.frame 
-        width  = self.n_data_cols + 1 + 1 * self.frame 
-        self.posx = posx if posx > -1 else (maxx - width)  / 2 
-        self.posy = posy if posy > -1 else (maxy - height) / 2
+        if width:
+            self.width = min(width, self.n_data_cols + 1 + 1 * self.frame) 
+        else:
+            self.width = min(maxx, self.n_data_cols + 1 + 1 * self.frame)
+
+        self.width = min(maxx, self.width)
+        #dbg.out("width = %d height=%d\n" % (width, height))
+
+        #height = self.n_data_rows + 2 * self.frame 
+
+        if posx == -1:
+            self.posx = abs(maxx - self.width) / 2
+        else:
+            self.posx = posx
+            self.width = abs(self.width - posx)
+        
+
+        #self.posx = posx if posx > -1 else (maxx - width)  / 2 
+        self.posy = posy if posy > -1 else (maxy - self.height) / 2
+
+
+
+        dbg.out("h=%d w=%d x=%d y=%d\n" % (self.height, self.width, self.posx, self.posy))
 
         # init attributes
         if curses.has_colors():
@@ -99,12 +129,21 @@ class Menu:
             self.normal = curses.A_NORMAL #color_pair(curses.A_NORMAL)
             self.marked = curses.A_REVERSE #color_pair(curses.A_UNDERLINE)
 
-        self.win = curses.newwin(height,
-                                 width,
-                                 self.posy, 
-                                 self.posx)
+        try:
+            self.win = curses.newwin(self.height,
+                                     self.width,
+                                     self.posy, 
+                                     self.posx)
+            #self.win = curses.newwin(20,
+            #                         self.posy, 
+            #                         1,
+            #                         1)
+        except Exception as ex:
+            print(ex)
+
         if border == 1:
             self.win.border()
+
             if self.title:
                 title_len = min(self.n_data_cols, len(self.title))
                 self.win.addnstr(0, 1,
@@ -117,6 +156,7 @@ class Menu:
         # select current row (highlitet)
         self.row_selected = self.frame # in the beginning 1st row is selected
 
+        #self.win.refresh()
         self.update_window()
 
 
@@ -129,23 +169,48 @@ class Menu:
     # *****************************************
     def update_window(self):
 
-        # Fill the window
         row = self.frame
         col = self.frame
+        val = None
+        lval = None
 
         idx = 0
-        while idx < len(self.entries):
-            row = idx + self.frame
-            self.win.addnstr(row, col, 
-                            "%-*s" % (self.n_data_cols, self.entries[idx]), 
-                            self.n_data_cols,
-                            self.marked if row == self.row_selected else self.normal)
-           #self.win.addnstr(row, col, "x", self.n_data_cols, self.normal)
-            idx += 1
 
-        self.win.move(self.row_selected, self.frame)
+        try:
 
-        self.win.refresh()
+            # Fill the window
+            #while idx < len(self.entries):
+            limit = min(self.height - 2 * self.frame, self.n_data_rows - 2 * self.frame) 
+            dbg.out("n_data_rows=%d\n" % self.n_data_rows)
+            dbg.out("height=%d\n" % self.height)
+            dbg.out("limit=%d\n" % limit)
+            while idx < limit:
+                row = idx + self.frame
+                #self.win.addnstr(row, col, 
+                #                "%-*s" % (self.n_data_cols, self.entries[idx]), 
+                #                self.n_data_cols,
+                #                self.marked if row == self.row_selected else self.normal)
+                val = "%-*s" % (self.width - 2 * self.frame - 1, self.entries[idx]) 
+                self.win.addnstr(row, col, 
+                                val,
+                                self.width - 2 * self.frame,
+                                self.marked if row == self.row_selected else self.normal)
+               #self.win.addnstr(row, col, "x", self.n_data_cols, self.normal)
+                dbg.out("idx=%d row=%d col=%d\n" % (idx, row, col))
+                idx += 1
+
+            dbg.out("limit=%d\n" % limit)
+            self.win.move(self.row_selected, self.frame)
+
+            self.win.refresh()
+
+        except curses.error as ex:
+            Menu.fini_curses()
+
+            print("idx=%d row=%d col=%d len=%d val=>%s<\n" % (idx, row, col, len(val), val))
+            print(ex)
+            print(curses.ERR)
+            sys.exit(1)
 
         return
 
@@ -162,12 +227,16 @@ class Menu:
         
         row = row + dir 
         if row < self.frame:
-            row = self.n_data_rows - 1
-        elif row >= self.n_data_rows + self.frame:
+            row = self.height - 1 - self.frame
+            #row = self.n_data_rows - 1
+        elif row >= self.height - self.frame:
             row = self.frame
         self.row_selected = row
 
         self.update_window()
+
+        dbg.out("h=%d w=%d r=%d c=%d\n" % (self.height, self.width, row, col))
+
 
         return
 
@@ -302,7 +371,9 @@ if __name__ == '__main__':
     parser.add_argument('-t', '--type', choices=['index', 'value'], default='index')
     parser.add_argument('-x', '--posx', type=int, default=-1)
     parser.add_argument('-y', '--posy', type=int, default=-1)
+    parser.add_argument('-w', '--width', type=int)
     parser.add_argument('-b', '--border', type=int, default=0)
+    parser.add_argument('-d', '--dbg' )
     parser.add_argument('positional', nargs='*')
 
     args = parser.parse_args()
@@ -353,14 +424,17 @@ if __name__ == '__main__':
         sys.stdout = open('/dev/tty', 'w')
         sys._stdout = sys.stdout
 
+        if args.dbg:
+            print("Debug!")
+            dbg = Dbg(args.dbg)
+        else:
+            dbg = DbgNull()
 
     position = None
 
     if len(entries) > 0:
 
-
-        position = Menu.fast(entries, posx = args.posx, posy = args.posy, border = args.border)
-        
+        position = Menu.fast(entries, posx = args.posx, posy = args.posy, border = args.border, width=args.width)
         if position == None:
             sys.exit(1) 
         else:
