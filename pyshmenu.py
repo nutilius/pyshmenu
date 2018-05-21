@@ -48,6 +48,10 @@ class Menu:
     frame  = 0 
     datapos_x = 0
     datapos_y = 0 
+    min_y = 0
+
+    data_pos_x = 0
+    data_pos_y = 0
 
     title = "Sel:"
 
@@ -176,8 +180,6 @@ class Menu:
         val = None
         lval = None
 
-        idx = 0
-
         try:
 
             # Fill the window
@@ -186,6 +188,10 @@ class Menu:
             dbg.out("n_data_rows=%d\n" % self.n_data_rows)
             dbg.out("height=%d\n" % self.height)
             dbg.out("limit=%d\n" % limit)
+
+            idx = 0
+            entries = self.entries[self.data_pos_y : self.data_pos_y + limit]
+            dbg.out("entries=%d\n" % len(entries))
             while idx < limit:
                 row = idx + self.frame
                 #self.win.addnstr(row, col, 
@@ -194,7 +200,7 @@ class Menu:
                 #                self.marked if row == self.row_selected else self.normal)
                 maxl = self.width - 2 * self.frame - 1
                 #val = self.entries[idx][:maxl]
-                val = "%-.*s" % (self.width - 2 * self.frame - 1, self.entries[idx]) 
+                val = "%-*.*s" % (maxl, maxl, entries[idx]) 
                 self.win.addnstr(row, col, 
                                 val,
                                 self.width - 2 * self.frame,
@@ -218,6 +224,82 @@ class Menu:
 
         return
 
+    def cursor_b(self):
+        
+        self.data_pos_y = 0 
+        self.row_selected = self.frame
+
+        #dbg.out("row=%d col=%d h=%d w=%d \n" % (row, col, self.height, self.width))
+
+        self.update_window()
+
+        return
+       
+    def cursor_e(self):
+        
+        self.data_pos_y = self.n_data_rows - self.height
+        self.row_selected = self.height - self.frame - 1
+
+        #dbg.out("row=%d col=%d h=%d w=%d \n" % (row, col, self.height, self.width))
+
+        self.update_window()
+
+        return
+       
+    def cursor_pu(self):
+        (row, col) = self.win.getyx()
+        
+        self.data_pos_y = self.data_pos_y - self.height
+        if self.data_pos_y < 0:
+            self.data_pos_y = 0
+
+        dbg.out("data_pos_y=%d, h=%d w=%d r=%d c=%d\n" % (self.data_pos_y, self.height, self.width, row, col))
+
+        self.update_window()
+
+        return
+
+    def cursor_pd(self):
+        (row, col) = self.win.getyx()
+        
+        self.data_pos_y = self.data_pos_y + self.height
+        if self.data_pos_y > self.n_data_rows - self.height:
+            self.data_pos_y = self.n_data_rows - self.height
+
+        dbg.out("data_pos_y=%d, h=%d w=%d r=%d c=%d\n" % (self.data_pos_y, self.height, self.width, row, col))
+
+        self.update_window()
+
+        return
+    def cursor_v_2(self, dir):
+        (row, col) = self.win.getyx()
+        
+        row = row + dir 
+
+        if row < self.frame:
+            # cursor out of display - move data window
+            self.data_pos_y = self.data_pos_y - 1
+            if self.data_pos_y < 0:
+                self.data_pos_y = 0 
+            row = self.frame
+                
+            #row = self.n_data_rows - 1
+        elif row >= self.height - self.frame:
+            self.data_pos_y = self.data_pos_y + 1
+            if self.data_pos_y > self.n_data_rows - self.height:
+                self.data_pos_y = self.n_data_rows - self.height
+                #row = self.frame
+            row = self.height - self.frame - 1
+
+
+        self.row_selected = row
+
+        dbg.out("data_pos_y=%d, h=%d w=%d r=%d c=%d\n" % (self.data_pos_y, self.height, self.width, row, col))
+
+        self.update_window()
+
+        return
+
     # *****************************************
     #
     # Moving cursor in vertical direction
@@ -235,6 +317,9 @@ class Menu:
             #row = self.n_data_rows - 1
         elif row >= self.height - self.frame:
             row = self.frame
+            # update min_y
+            min_y = self.min_y
+
         self.row_selected = row
 
         self.update_window()
@@ -262,11 +347,21 @@ class Menu:
             elif char == 27:
                 return None
             elif char == curses.KEY_UP:
-               self.cursor_v(-1)
+               #self.cursor_v(-1)
+               self.cursor_v_2(-1)
             elif char == curses.KEY_DOWN:
-               self.cursor_v(+1)
+               #self.cursor_v(+1)
+               self.cursor_v_2(+1)
+            elif char == curses.KEY_HOME:
+               self.cursor_b()
+            elif char == curses.KEY_END:
+               self.cursor_e()
+            elif char == curses.KEY_PPAGE:
+               self.cursor_pu()
+            elif char == curses.KEY_NPAGE:
+               self.cursor_pd()
             elif char == 10: #curses.KEY_ENTER
-               position = self.win.getyx()[0]
+               position = self.win.getyx()[0] + self.data_pos_y
                break
         self.win.keypad(0)
         return position - self.frame
