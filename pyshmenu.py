@@ -46,6 +46,8 @@ class Menu:
     n_data_cols = 0    # max width  of data
     row_selected = 0
     frame  = 0 
+    datapos_x = 0
+    datapos_y = 0 
 
     title = "Sel:"
 
@@ -190,13 +192,15 @@ class Menu:
                 #                "%-*s" % (self.n_data_cols, self.entries[idx]), 
                 #                self.n_data_cols,
                 #                self.marked if row == self.row_selected else self.normal)
-                val = "%-*s" % (self.width - 2 * self.frame - 1, self.entries[idx]) 
+                maxl = self.width - 2 * self.frame - 1
+                #val = self.entries[idx][:maxl]
+                val = "%-.*s" % (self.width - 2 * self.frame - 1, self.entries[idx]) 
                 self.win.addnstr(row, col, 
                                 val,
                                 self.width - 2 * self.frame,
                                 self.marked if row == self.row_selected else self.normal)
                #self.win.addnstr(row, col, "x", self.n_data_cols, self.normal)
-                dbg.out("idx=%d row=%d col=%d\n" % (idx, row, col))
+                dbg.out("idx=%d row=%d col=%d h=%d w=%d l=%d maxl=%d\n" % (idx, row, col, self.height, self.width, len(val), maxl))
                 idx += 1
 
             dbg.out("limit=%d\n" % limit)
@@ -424,11 +428,12 @@ if __name__ == '__main__':
         sys.stdout = open('/dev/tty', 'w')
         sys._stdout = sys.stdout
 
-        if args.dbg:
-            print("Debug!")
-            dbg = Dbg(args.dbg)
-        else:
-            dbg = DbgNull()
+        
+    if args.dbg:
+        print("Debug!")
+        dbg = Dbg(args.dbg)
+    else:
+        dbg = DbgNull()
 
     position = None
 
