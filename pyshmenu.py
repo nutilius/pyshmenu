@@ -27,6 +27,11 @@ from debug import Dbg, DbgNull
 dbg = None
 
 
+# *********************************************************
+#
+#
+#
+# *********************************************************
 class Menu:
     '''
     Simple Menu class to show menu entries on system where ncurses is available
@@ -40,18 +45,24 @@ class Menu:
 
     posx = 0
     posy = 0
-    width  = None
-    height = None
+    w_width  = None    # window height (with optional title and border)
+    w_height = None    # window width (with optional title and border)
+    #
+    v_width  = None    # view height
+    v_height = None    # view width
+    v_top    = None    # view upper y coord (in window coordinates)
+    v_bottom = None
+
+    frame  = 0 
+    header = 0
+    #
     n_data_rows = 0    # max height of data
     n_data_cols = 0    # max width  of data
+    data_pos_x = 0     # x position in data box
+    data_pos_y = 0     # y position in data box
     row_selected = 0
-    frame  = 0 
-    datapos_x = 0
-    datapos_y = 0 
     min_y = 0
 
-    data_pos_x = 0
-    data_pos_y = 0
 
     title = "Sel:"
 
@@ -61,10 +72,13 @@ class Menu:
     #
     #
     # *****************************************
-    def __init__(self, entries):
+    def __init__(self, entries, header = 0):
 
         # init window
-        self.entries = entries
+        if header:
+            self.header = header
+            self.headstr = entries[0]
+        self.entries = entries[self.header:]
 
         # calculate max width of data - number of columns
         for entry in entries:
@@ -83,84 +97,107 @@ class Menu:
     #     1 - default border
     #
     # *****************************************
-    def show(self, stdscr, posx = -1, posy = -1, width=None, height=None, border = 0):
+    def show(self, stdscr, posx = -1, posy = -1, width=None, height=None, border = 0, header = None):
 
         (maxy, maxx) = stdscr.getmaxyx()
-        #maxx -= 1
-        #maxy -= 1
-        
-        
-        #self.width  = min(width,  maxx) if width  else maxx
-        dbg.out("*****Debug*****\n")
-        self.height = min(height, maxy) if height else maxy
-        dbg.out("maxx=%d maxy=%d\n" % (maxx, maxy))
 
         if border > 0:
             self.frame = 1
 
+        # corrections of maxx and maxy based on posx and posy
+        if posy > 0 and posy < maxy - 1:
+            maxy = maxy - posy
+        else:
+            posy = 0
+        if posx > 0 and posx < maxx - 1:
+            maxx = maxx - posx
+        else:
+            posx = 0
+        
+        dbg.out("*****Debug*****\n")
+
+        # Calculating height of window (with optional border and title)
+        # correction for border and header
+        if height:
+            height = height + 2 * self.frame + self.header
+        # select maximal possible window height 
+        self.w_height = min(height, maxy) if height else maxy
+        self.w_height = min(self.w_height, self.n_data_rows + 2 * self.frame + 1 * self.header)
+        dbg.out("maxx=%d maxy=%d\n" % (maxx, maxy))
 
         # Hint: in case without border the width must be incremented 
         # by one otherwise addstr generate error in last row
         if width:
-            self.width = min(width, self.n_data_cols + 1 + 1 * self.frame) 
+            self.w_width = min(width, self.n_data_cols + 1 + 2 * self.frame) 
         else:
-            self.width = min(maxx, self.n_data_cols + 1 + 1 * self.frame)
+            self.w_width = min(maxx, self.n_data_cols + 1 + 2 * self.frame)
 
-        self.width = min(maxx, self.width)
+        self.w_width = min(maxx, self.w_width)
         #dbg.out("width = %d height=%d\n" % (width, height))
 
-        #height = self.n_data_rows + 2 * self.frame 
 
         if posx == -1:
-            self.posx = abs(maxx - self.width) / 2
+            self.posx = abs(maxx - self.w_width) / 2
         else:
             self.posx = posx
-            self.width = abs(self.width - posx)
+            #self.w_width = abs(self.w_width - posx)
         
 
         #self.posx = posx if posx > -1 else (maxx - width)  / 2 
-        self.posy = posy if posy > -1 else (maxy - self.height) / 2
+        self.posy = posy if posy > -1 else (maxy - self.w_height) / 2
 
 
+        # settings for view (on the screen) - only moving data
+        #self.v_height = min(self.w_height - 2 * self.frame, self.n_data_rows - 2 * self.frame) 
+        self.v_height = self.w_height - 2 * self.frame - self.header
+        self.v_width = self.w_width - 2 * self.frame - 1
+        #
+        self.v_top = self.frame + self.header
+        self.v_bottom = self.v_top + self.v_height - 1
+        #self.v_bottom = self.w_height - self.frame
 
-        dbg.out("h=%d w=%d x=%d y=%d\n" % (self.height, self.width, self.posx, self.posy))
+        # Update (adjust) header string to full view width
+        self.headstr = "%-*.*s" % (self.v_width, self.v_width, self.headstr) 
+
+        dbg.out("h=%d w=%d x=%d y=%d\n" % (self.w_height, self.w_width, self.posx, self.posy))
 
         # init attributes
         if curses.has_colors():
             curses.init_pair(1, curses.COLOR_WHITE, curses.COLOR_BLACK)
             curses.init_pair(2, curses.COLOR_BLACK, curses.COLOR_YELLOW)
+            curses.init_pair(3, curses.COLOR_BLACK, curses.COLOR_GREEN)
             self.normal = curses.color_pair(1)
             self.marked = curses.color_pair(2)
+            self.headattr = curses.color_pair(3)
         else:
             self.normal = curses.A_NORMAL #color_pair(curses.A_NORMAL)
             self.marked = curses.A_REVERSE #color_pair(curses.A_UNDERLINE)
+            self.headattr = curses.A_REVERSE #color_pair(curses.A_UNDERLINE)
 
         try:
-            self.win = curses.newwin(self.height,
-                                     self.width,
+            self.win = curses.newwin(self.w_height,
+                                     self.w_width,
                                      self.posy, 
                                      self.posx)
-            #self.win = curses.newwin(20,
-            #                         self.posy, 
-            #                         1,
-            #                         1)
         except Exception as ex:
             print(ex)
 
         if border == 1:
             self.win.border()
 
+        elif border == 2:
+            self.win.border('|', '|', '-', '-', '+', '+', '+', '+')
+        
+        # Set otional title (only for window with frame)
+        if border:
             if self.title:
                 title_len = min(self.n_data_cols, len(self.title))
                 self.win.addnstr(0, 1,
                                 "%-*s" % (title_len, self.title), 
                                 self.n_data_cols,
                                 self.normal)
-        elif border == 2:
-            self.win.border('|', '|', '-', '-', '+', '+', '+', '+')
-        
         # select current row (highlitet)
-        self.row_selected = self.frame # in the beginning 1st row is selected
+        self.row_selected = self.frame + self.header  # in the beginning 1st row is selected
 
         #self.win.refresh()
         self.update_window()
@@ -183,30 +220,29 @@ class Menu:
         try:
 
             # Fill the window
-            #while idx < len(self.entries):
-            limit = min(self.height - 2 * self.frame, self.n_data_rows - 2 * self.frame) 
+            limit = self.v_height
             dbg.out("n_data_rows=%d\n" % self.n_data_rows)
-            dbg.out("height=%d\n" % self.height)
+            dbg.out("height=%d\n" % self.w_height)
             dbg.out("limit=%d\n" % limit)
 
+
+            if self.header:
+                self.win.addnstr(row, col, 
+                                self.headstr,
+                                self.v_width ,
+                                self.headattr)
             idx = 0
             entries = self.entries[self.data_pos_y : self.data_pos_y + limit]
             dbg.out("entries=%d\n" % len(entries))
             while idx < limit:
-                row = idx + self.frame
-                #self.win.addnstr(row, col, 
-                #                "%-*s" % (self.n_data_cols, self.entries[idx]), 
-                #                self.n_data_cols,
-                #                self.marked if row == self.row_selected else self.normal)
-                maxl = self.width - 2 * self.frame - 1
-                #val = self.entries[idx][:maxl]
-                val = "%-*.*s" % (maxl, maxl, entries[idx]) 
+                #row = idx + self.frame + self.header
+                row = self.v_top + idx
+                val = "%-*.*s" % (self.v_width, self.v_width, entries[idx]) 
                 self.win.addnstr(row, col, 
                                 val,
-                                self.width - 2 * self.frame,
+                                self.v_width ,#self.w_width - 2 * self.frame,
                                 self.marked if row == self.row_selected else self.normal)
-               #self.win.addnstr(row, col, "x", self.n_data_cols, self.normal)
-                dbg.out("idx=%d row=%d col=%d h=%d w=%d l=%d maxl=%d\n" % (idx, row, col, self.height, self.width, len(val), maxl))
+                dbg.out("idx=%d row=%d col=%d h=%d w=%d l=%d \n" % (idx, row, col, self.w_height, self.w_width, len(val)))
                 idx += 1
 
             dbg.out("limit=%d\n" % limit)
@@ -224,77 +260,104 @@ class Menu:
 
         return
 
+    # *****************************************
+    #
+    #
+    #
+    # *****************************************
     def cursor_b(self):
         
         self.data_pos_y = 0 
         self.row_selected = self.frame
 
-        #dbg.out("row=%d col=%d h=%d w=%d \n" % (row, col, self.height, self.width))
+        #dbg.out("row=%d col=%d h=%d w=%d \n" % (row, col, self.w_height, self.w_width))
 
         self.update_window()
 
         return
        
+    # *****************************************
+    #
+    #
+    #
+    # *****************************************
     def cursor_e(self):
         
-        self.data_pos_y = self.n_data_rows - self.height
-        self.row_selected = self.height - self.frame - 1
+        self.data_pos_y = self.n_data_rows - self.w_height
+        self.row_selected = self.w_height - self.frame - 1
 
-        #dbg.out("row=%d col=%d h=%d w=%d \n" % (row, col, self.height, self.width))
+        #dbg.out("row=%d col=%d h=%d w=%d \n" % (row, col, self.w_height, self.w_width))
 
         self.update_window()
 
         return
        
+    # *****************************************
+    #
+    #
+    #
+    # *****************************************
     def cursor_pu(self):
         (row, col) = self.win.getyx()
         
-        self.data_pos_y = self.data_pos_y - self.height
+        self.data_pos_y = self.data_pos_y - self.w_height
         if self.data_pos_y < 0:
             self.data_pos_y = 0
 
-        dbg.out("data_pos_y=%d, h=%d w=%d r=%d c=%d\n" % (self.data_pos_y, self.height, self.width, row, col))
+        dbg.out("data_pos_y=%d, h=%d w=%d r=%d c=%d\n" % (self.data_pos_y, self.w_height, self.w_width, row, col))
 
         self.update_window()
 
         return
 
+    # *****************************************
+    #
+    #
+    #
+    # *****************************************
     def cursor_pd(self):
         (row, col) = self.win.getyx()
         
-        self.data_pos_y = self.data_pos_y + self.height
-        if self.data_pos_y > self.n_data_rows - self.height:
-            self.data_pos_y = self.n_data_rows - self.height
+        self.data_pos_y = self.data_pos_y + self.w_height
+        if self.data_pos_y > self.n_data_rows - self.w_height:
+            self.data_pos_y = self.n_data_rows - self.w_height
 
-        dbg.out("data_pos_y=%d, h=%d w=%d r=%d c=%d\n" % (self.data_pos_y, self.height, self.width, row, col))
+        dbg.out("data_pos_y=%d, h=%d w=%d r=%d c=%d\n" % (self.data_pos_y, self.w_height, self.w_width, row, col))
 
         self.update_window()
 
         return
+
+    # *****************************************
+    #
+    #
+    #
+    # *****************************************
     def cursor_v_2(self, dir):
         (row, col) = self.win.getyx()
         
         row = row + dir 
 
-        if row < self.frame:
+        #if row < self.frame:
+        if row < self.v_top:
             # cursor out of display - move data window
             self.data_pos_y = self.data_pos_y - 1
             if self.data_pos_y < 0:
                 self.data_pos_y = 0 
-            row = self.frame
+            row = self.v_top
                 
-            #row = self.n_data_rows - 1
-        elif row >= self.height - self.frame:
+        #elif row >= self.w_height - self.frame:
+        elif row >= self.v_bottom:
             self.data_pos_y = self.data_pos_y + 1
-            if self.data_pos_y > self.n_data_rows - self.height:
-                self.data_pos_y = self.n_data_rows - self.height
-                #row = self.frame
-            row = self.height - self.frame - 1
+            if self.data_pos_y > self.n_data_rows - self.v_height:
+                self.data_pos_y = self.n_data_rows - self.v_height
+            #row = self.w_height - self.frame - 1
+            row = self.v_bottom
 
 
         self.row_selected = row
 
-        dbg.out("data_pos_y=%d, h=%d w=%d r=%d c=%d\n" % (self.data_pos_y, self.height, self.width, row, col))
+        dbg.out("data_pos_y=%d, h=%d w=%d r=%d c=%d\n" % (self.data_pos_y, self.w_height, self.w_width, row, col))
 
         self.update_window()
 
@@ -313,9 +376,9 @@ class Menu:
         
         row = row + dir 
         if row < self.frame:
-            row = self.height - 1 - self.frame
+            row = self.w_height - 1 - self.frame
             #row = self.n_data_rows - 1
-        elif row >= self.height - self.frame:
+        elif row >= self.w_height - self.frame:
             row = self.frame
             # update min_y
             min_y = self.min_y
@@ -324,7 +387,7 @@ class Menu:
 
         self.update_window()
 
-        dbg.out("h=%d w=%d r=%d c=%d\n" % (self.height, self.width, row, col))
+        dbg.out("h=%d w=%d r=%d c=%d\n" % (self.w_height, self.w_width, row, col))
 
 
         return
@@ -383,7 +446,7 @@ class Menu:
     init_curses = staticmethod(init_curses)
 
     # *****************************************
-    #
+    # 
     #
     #
     # *****************************************
@@ -396,14 +459,15 @@ class Menu:
     fini_curses = staticmethod(fini_curses) 
 
     # *****************************************
-    #
-    #
-    #
+    # Simple method for fast displaying menu
+    #  - init curses
+    #  - display menu
+    #  - fini curses
     # *****************************************
     def fast(entries, posx = -1, posy = -1, width=None, height=None, border = 0):
         try:    
             stdscr = Menu.init_curses()
-            m = Menu(entries)
+            m = Menu(entries, 1)
             m.show(stdscr, posx, posy, width, height, border)
             position = m.loop()
             Menu.fini_curses()
@@ -415,53 +479,11 @@ class Menu:
     # Make fast static method
     fast = staticmethod(fast)
 
-# *********************************************************************
+# **********************************************
 #
 #
 #
-#
-#
-# *********************************************************************
-class MenuFast():
-
-    stdscr = None
-    entries = None
-
-    def __init__(self, entries):
-        self.entries = entries
-
-    def init_curses(self):
-            self.stdscr = curses.initscr()
-            curses.start_color()
-            curses.noecho()
-            curses.cbreak()
-            curses.curs_set(0)
-
-            return self.stdscr
-
-    def fini_curses(self):
-        curses.nocbreak()
-        curses.echo()
-        curses.endwin()
-
-    def show(self, posx = -1, posy = -1, width=None, height=None, border = 0):
-        try:    
-            stdscr = self.init_curses()
-            m = Menu(stdscr, self.entries, posx, posy, width, height, border)
-            position = m.loop()
-            self.fini_curses()
-            return position
-        except curses.error as ex:
-            self.fini_curses()
-            return None
-            #print(ex)
-
-
-# *****************************************
-#
-#
-#
-# *****************************************
+# **********************************************
 
 if __name__ == '__main__':
 
@@ -525,7 +547,6 @@ if __name__ == '__main__':
 
         
     if args.dbg:
-        print("Debug!")
         dbg = Dbg(args.dbg)
     else:
         dbg = DbgNull()
