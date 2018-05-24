@@ -23,7 +23,13 @@ import curses
 # *********************************************************************
 
 
-from debug import Dbg, DbgNull
+try:
+    from debug import Dbg, DbgNull
+except:
+    class DbgNull:
+        def out(self, msg):
+            pass
+
 dbg = None
 
 
@@ -65,6 +71,7 @@ class Menu:
 
 
     title = "Sel:"
+    headstr = ""
 
 
     # *****************************************
@@ -74,12 +81,16 @@ class Menu:
     # *****************************************
     def __init__(self, entries, header = 0):
 
+        dbg.out("entries=%d\n" % len(entries))
         # init window
         if header:
             self.header = header
             self.headstr = entries[0]
-        self.entries = entries[self.header:]
+            self.entries = entries[self.header:]
+        else:
+            self.entries = entries
 
+        dbg.out("entries=%d\n" % len(self.entries))
         # calculate max width of data - number of columns
         for entry in entries:
             if len(entry) > self.n_data_cols:
@@ -87,7 +98,7 @@ class Menu:
         self.n_data_cols -= self.frame
 
         # calculate max height - number of rows
-        self.n_data_rows = len(entries)
+        self.n_data_rows = len(self.entries)
 
 
     # *****************************************
@@ -159,7 +170,7 @@ class Menu:
         # Update (adjust) header string to full view width
         self.headstr = "%-*.*s" % (self.v_width, self.v_width, self.headstr) 
 
-        dbg.out("h=%d w=%d x=%d y=%d\n" % (self.w_height, self.w_width, self.posx, self.posy))
+        dbg.out("Window: h=%d w=%d x=%d y=%d\n" % (self.w_height, self.w_width, self.posx, self.posy))
 
         # init attributes
         if curses.has_colors():
@@ -221,9 +232,7 @@ class Menu:
 
             # Fill the window
             limit = self.v_height
-            dbg.out("n_data_rows=%d\n" % self.n_data_rows)
-            dbg.out("height=%d\n" % self.w_height)
-            dbg.out("limit=%d\n" % limit)
+            dbg.out("n_data_rows=%d w_height=%d v_height=%d\n" % (self.n_data_rows, self.w_height, self.v_height))
 
 
             if self.header:
@@ -232,9 +241,9 @@ class Menu:
                                 self.v_width ,
                                 self.headattr)
             idx = 0
-            entries = self.entries[self.data_pos_y : self.data_pos_y + limit]
+            entries = self.entries[self.data_pos_y : self.data_pos_y + self.v_height + 2]
             dbg.out("entries=%d\n" % len(entries))
-            while idx < limit:
+            while idx < self.v_height:
                 #row = idx + self.frame + self.header
                 row = self.v_top + idx
                 val = "%-*.*s" % (self.v_width, self.v_width, entries[idx]) 
@@ -242,7 +251,9 @@ class Menu:
                                 val,
                                 self.v_width ,#self.w_width - 2 * self.frame,
                                 self.marked if row == self.row_selected else self.normal)
-                dbg.out("idx=%d row=%d col=%d h=%d w=%d l=%d \n" % (idx, row, col, self.w_height, self.w_width, len(val)))
+                dbg.out("idx=%d row=%d col=%d iWindow: h=%d w=%d l=%d \n" 
+                        % 
+                        (idx, row, col, self.w_height, self.w_width, len(val)))
                 idx += 1
 
             dbg.out("limit=%d\n" % limit)
@@ -268,7 +279,7 @@ class Menu:
     def cursor_b(self):
         
         self.data_pos_y = 0 
-        self.row_selected = self.frame
+        self.row_selected = self.v_top
 
         #dbg.out("row=%d col=%d h=%d w=%d \n" % (row, col, self.w_height, self.w_width))
 
@@ -283,8 +294,8 @@ class Menu:
     # *****************************************
     def cursor_e(self):
         
-        self.data_pos_y = self.n_data_rows - self.w_height
-        self.row_selected = self.w_height - self.frame - 1
+        self.data_pos_y = self.n_data_rows - self.v_height
+        self.row_selected = self.v_bottom #self.w_height - self.frame - 1
 
         #dbg.out("row=%d col=%d h=%d w=%d \n" % (row, col, self.w_height, self.w_width))
 
@@ -304,6 +315,8 @@ class Menu:
         if self.data_pos_y < 0:
             self.data_pos_y = 0
 
+        self.row_selected = self.v_top
+
         dbg.out("data_pos_y=%d, h=%d w=%d r=%d c=%d\n" % (self.data_pos_y, self.w_height, self.w_width, row, col))
 
         self.update_window()
@@ -319,8 +332,10 @@ class Menu:
         (row, col) = self.win.getyx()
         
         self.data_pos_y = self.data_pos_y + self.w_height
-        if self.data_pos_y > self.n_data_rows - self.w_height:
-            self.data_pos_y = self.n_data_rows - self.w_height
+        if self.data_pos_y > self.n_data_rows - self.v_height:
+            self.data_pos_y = self.n_data_rows - self.v_height
+
+        self.row_selected = self.v_bottom
 
         dbg.out("data_pos_y=%d, h=%d w=%d r=%d c=%d\n" % (self.data_pos_y, self.w_height, self.w_width, row, col))
 
@@ -439,7 +454,7 @@ class Menu:
     def fast(entries, posx = -1, posy = -1, width=None, height=None, border = 0, header = 0):
         try:    
             stdscr = Menu.init_curses()
-            m = Menu(entries, 1)
+            m = Menu(entries, header)
             m.show(stdscr, posx, posy, width, height, border)
             position = m.loop()
             Menu.fini_curses()
@@ -465,7 +480,7 @@ if __name__ == '__main__':
     parser.add_argument('-x', '--posx', type=int, default=-1)
     parser.add_argument('-y', '--posy', type=int, default=-1)
     parser.add_argument('-w', '--width', type=int)
-    parser.add_argument('-a', '--header', type=int, default=0)
+    parser.add_argument('-l', '--header', type=int, default=0)
     parser.add_argument('-b', '--border', type=int, default=0)
     parser.add_argument('-d', '--dbg' )
     parser.add_argument('positional', nargs='*')
@@ -528,7 +543,8 @@ if __name__ == '__main__':
 
     if len(entries) > 0:
 
-        position = Menu.fast(entries, posx = args.posx, posy = args.posy, border = args.border, width=args.width)
+        position = Menu.fast(entries, posx = args.posx, posy = args.posy, 
+                             border = args.border, header = args.header, width=args.width)
         if position == None:
             sys.exit(1) 
         else:
