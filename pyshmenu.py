@@ -330,10 +330,13 @@ class Menu:
 
     # *****************************************
     #
-    #
+    # Moving cursor in vertical direction
+    #   dir:
+    #     -1 - up
+    #     +1 - down
     #
     # *****************************************
-    def cursor_v_2(self, dir):
+    def cursor_v(self, dir):
         (row, col) = self.win.getyx()
         
         row = row + dir 
@@ -363,34 +366,6 @@ class Menu:
 
         return
 
-    # *****************************************
-    #
-    # Moving cursor in vertical direction
-    #   dir:
-    #     -1 - up
-    #     +1 - down
-    #
-    # *****************************************
-    def cursor_v(self, dir):
-        (row, col) = self.win.getyx()
-        
-        row = row + dir 
-        if row < self.frame:
-            row = self.w_height - 1 - self.frame
-            #row = self.n_data_rows - 1
-        elif row >= self.w_height - self.frame:
-            row = self.frame
-            # update min_y
-            min_y = self.min_y
-
-        self.row_selected = row
-
-        self.update_window()
-
-        dbg.out("h=%d w=%d r=%d c=%d\n" % (self.w_height, self.w_width, row, col))
-
-
-        return
 
 
     # *****************************************
@@ -405,16 +380,13 @@ class Menu:
         while True:
             char = self.win.getch()
             if char == ord('q') or char == ord('Q'):
-                #position = None
                 return None
             elif char == 27:
                 return None
             elif char == curses.KEY_UP:
-               #self.cursor_v(-1)
-               self.cursor_v_2(-1)
+               self.cursor_v(-1)
             elif char == curses.KEY_DOWN:
-               #self.cursor_v(+1)
-               self.cursor_v_2(+1)
+               self.cursor_v(+1)
             elif char == curses.KEY_HOME:
                self.cursor_b()
             elif char == curses.KEY_END:
@@ -464,7 +436,7 @@ class Menu:
     #  - display menu
     #  - fini curses
     # *****************************************
-    def fast(entries, posx = -1, posy = -1, width=None, height=None, border = 0):
+    def fast(entries, posx = -1, posy = -1, width=None, height=None, border = 0, header = 0):
         try:    
             stdscr = Menu.init_curses()
             m = Menu(entries, 1)
@@ -493,6 +465,7 @@ if __name__ == '__main__':
     parser.add_argument('-x', '--posx', type=int, default=-1)
     parser.add_argument('-y', '--posy', type=int, default=-1)
     parser.add_argument('-w', '--width', type=int)
+    parser.add_argument('-a', '--header', type=int, default=0)
     parser.add_argument('-b', '--border', type=int, default=0)
     parser.add_argument('-d', '--dbg' )
     parser.add_argument('positional', nargs='*')
